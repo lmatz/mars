@@ -57,7 +57,7 @@ class WorkerApplication(BaseApplication, WorkerService):
         # here we create necessary actors on worker
         # and distribute them over processes
         mem_stats = resource.virtual_memory()
-
+        print("Worker create_pool mem_stats:", mem_stats)
         options.worker.cpu_process_count = int(self.args.cpu_procs or resource.cpu_count())
         options.worker.io_process_count = int(self.args.io_procs or '1')
         options.worker.physical_memory_limit_hard = self._calc_size_limit(
@@ -69,6 +69,9 @@ class WorkerApplication(BaseApplication, WorkerService):
         options.worker.cache_memory_limit = self._calc_size_limit(
             self.args.cache_mem or options.worker.cache_memory_limit, mem_stats.total
         )
+        print(
+            "Worker create_pool: physical_memory_limit_hard:{}, physical_memory_limit_soft:{}, cache_memory_limit:{}".format(
+                options.worker.physical_memory_limit_hard, options.worker.physical_memory_limit_soft, options.worker.cache_memory_limit))
         options.worker.disk_limit = self.args.disk
         if self.args.spill_dir:
             from .spill import parse_spill_dirs

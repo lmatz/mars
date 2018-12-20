@@ -96,6 +96,7 @@ class WorkerService(object):
             service_discover_addr = options.kv_store
 
         # create ClusterInfoActor
+        logger.debug("WorkerService start, try to create actor in pool")
         self._cluster_info_ref = pool.create_actor(ClusterInfoActor, schedulers=schedulers,
                                                    service_discover_addr=service_discover_addr,
                                                    uid=ClusterInfoActor.default_name())

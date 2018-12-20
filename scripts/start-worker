@@ -1,0 +1,1 @@
+mars-worker -a 0.0.0.0 -p 7924 -s 0.0.0.0 --cpu-procs=1 --phy-mem=6g --cache-mem=1g > worker-log 2>&1  &

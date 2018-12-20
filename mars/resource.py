@@ -35,6 +35,7 @@ else:
 def virtual_memory():
     sys_mem = psutil.virtual_memory()
     if not _use_process_stat:
+        print("not use process stat")
         total = sys_mem.total
         used = sys_mem.used + getattr(sys_mem, 'shared', 0)
         available = sys_mem.available
@@ -42,6 +43,7 @@ def virtual_memory():
         percent = 100.0 * (total - available) / total
         return _virt_memory_stat(total, available, percent, used, free)
     else:
+        print("use psutil")
         used = 0
         for p in psutil.process_iter():
             try:
@@ -98,7 +100,7 @@ def cpu_percent():
 
         if _last_cpu_measure is None:
             _last_cpu_measure = (pts, sts)
-            return None
+            # return None
 
         old_pts, old_sts = _last_cpu_measure
 

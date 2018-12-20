@@ -56,6 +56,7 @@ gipc (pronunciation “gipsy”)
 
 
 import os
+import logging
 import io
 import sys
 import struct
@@ -65,6 +66,8 @@ import logging
 import multiprocessing
 import multiprocessing.process
 from itertools import chain
+
+logger = logging.getLogger(__name__)
 
 try:
     import cPickle as pickle
@@ -247,9 +250,11 @@ def pipe(duplex=False, encoder='default', decoder='default'):
     elif not callable(decoder):
         raise GIPCError("pipe 'decoder' argument must be callable.")
     pair1 = _newpipe(encoder, decoder)
+    logger.debug("pid:", os.getpid(), " pipe1: read from", pair1[0]._fd, " and write to", pair1[1]._fd)
     if not duplex:
         return _PairContext(pair1)
     pair2 = _newpipe(encoder, decoder)
+    logger.debug("pid:", os.getpid(), " pipe2: read from", pair2[0]._fd, " and write to", pair2[1]._fd)
     return _PairContext((
         _GIPCDuplexHandle((pair1[0], pair2[1])),
         _GIPCDuplexHandle((pair2[0], pair1[1]))))
@@ -645,6 +650,7 @@ cdef class _GIPCHandle:
                 "Can't close handle %s: locked for I/O operation." % self)
         log.debug("Invalidating %s ...", self)
         if self._fd is not None:
+            logger.debug("Pipe with fd:", self._fd, " is closed")
             os.close(self._fd)
             self._fd = None
         if self in _all_handles:
@@ -864,6 +870,7 @@ cdef class _GIPCReader(_GIPCHandle):
         # to be faster than re-using an existing  buffer via seek(0)/truncate().
         readbuf = buf or io.BytesIO()
         remaining = n
+        logger.debug("pid:", os.getpid(), " _recv_in_buffer try to read from fd:", self._fd, " with size:", remaining)
         while remaining > 0:
             # Attempt to read at most 65536 bytes from pipe, which is the
             # pipe capacity on common Linux systems. Although unexpected,
@@ -885,6 +892,8 @@ cdef class _GIPCReader(_GIPCHandle):
                     raise IOError("Message interrupted by EOF.")
             readbuf.write(chunk)
             remaining -= received
+            logger.debug("pid:", os.getpid(), " remaining:" , remaining)
+        logger.debug("pid:", os.getpid(), " _recv_in_buffer finishes")
         return readbuf
 
     cpdef bytes get(self, timeout=None):
@@ -971,14 +980,17 @@ cdef class _GIPCWriter(_GIPCHandle):
             EAGAIN is handled within _write_nonblocking; partial writes here.
         """
         cdef int bytes_written
-
         bindata = memoryview(bindata)
+        logger.debug("pid:", os.getpid(), " _write try to write to fd:", self._fd, " with size:", len(bindata))
         while True:
             # Causes OSError when read end is closed (broken pipe).
             bytes_written = _write_nonblocking(self._fd, bindata)
             if bytes_written == len(bindata):
                 break
             bindata = bindata[bytes_written:]
+            logger.debug("pid:", os.getpid(), " reamining:", len(bindata))
+        logger.debug("pid:", os.getpid(), " _write finishes")
+
 
     def put(self, *oo):
         """Encode objects ``oo`` and write them to the pipe.

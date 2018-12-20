@@ -147,6 +147,7 @@ class BaseApplication(object):
         pass
 
     def _try_create_pool(self, endpoint=None, host=None, port=None):
+        logger.debug("process with pid:", os.getpid(), " _try_create_pool")
         pool = None
         if endpoint:
             pool = self.create_pool(address=endpoint)
@@ -196,7 +197,8 @@ class BaseApplication(object):
                                 self.service_logger.fatal(
                                     'Process %d exited unpredictably. exitcode=%d', proc.pid, proc.exitcode)
                                 raise KeyboardInterrupt
-                except:
+                except Exception as e:
+                    logger.debug("pid:", os.getpid(), " Base App main_loop get exception:", e)
                     self._running = False
                     self.stop_service()
         finally:

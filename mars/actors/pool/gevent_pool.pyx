@@ -50,6 +50,10 @@ from .messages cimport pack_send_message, pack_tell_message, pack_create_actor_m
 from .messages import write_remote_message
 from .utils cimport new_actor_id
 from .utils import create_actor_ref
+import os
+import logging
+
+logger = logging.getLogger(__name__)
 
 gevent_init_tblib()
 
@@ -1041,10 +1045,15 @@ cdef class Communicator(AsyncHandler):
         cdef bytes message
 
         self.running.clear()
-        if self.pipe is not None:
-            while True:
-                message = self.pipe.get()
-                gevent.spawn(self.on_receive, message)
+        try:
+            if self.pipe is not None:
+                while True:
+                    logger.debug("pid:", os.getpid(), "start to get from pipe:", self.pipe)
+                    message = self.pipe.get()
+                    gevent.spawn(self.on_receive, message)
+        except Exception as e:
+            logger.debug("pid:", os.getpid(), " get an exception from pipe.get()")
+            raise e
 
 
 cdef class Dispatcher(AsyncHandler):
@@ -1154,6 +1163,7 @@ cdef class Dispatcher(AsyncHandler):
         actor_id = uid or new_actor_id()
         actor_ref = ActorRef(address, actor_id)
 
+        logger.debug("process with pid:", os.getpid()," Dispatcher create_actor")
         if self._is_remote(actor_ref):
             kwargs['address'] = address
             kwargs['uid'] = uid
@@ -1170,6 +1180,7 @@ cdef class Dispatcher(AsyncHandler):
             raise pickle.PicklingError('Unable to pickle {0}(*{1}, **{2})'.format(actor_cls, args, kwargs))
 
         if wait:
+            logger.debug("process with pid:", os.getpid()," put message to pipe write fd:", self.pipes[to_index][1]._fd)
             self.pipes[to_index].put(message)
             return self.submit(message_id)
 
@@ -1177,6 +1188,7 @@ cdef class Dispatcher(AsyncHandler):
         future = gevent.event.AsyncResult()
 
         def check():
+            logger.debug("process with pid:", os.getpid()," Dispatcher check put message to pipe write fd:", self.pipes[to_index][1]._fd)
             self.pipes[to_index].put(message)
             self.future(message_id, future, callback=callback)
 
@@ -1502,6 +1514,7 @@ cdef class ActorPool:
                   for _ in range(self.cluster_info.n_process)]))
 
             for i in range(self.cluster_info.n_process):
+                logger.debug("gipc start_process ", i)
                 p = gipc.start_process(start_local_pool,
                                        args=(i, self.cluster_info, comm_pipes[i], self.distributor),
                                        kwargs={'parallel': self._parallel, 'join': True}, daemon=True)
@@ -1519,10 +1532,15 @@ cdef class ActorPool:
 
                 for process in self._processes:
                     process.terminate()
+                    logger.debug("Finish process with pid:", process.pid)
                 for p in comm_pipes:
                     close_pipe(p)
+                    logger.debug("Finish pipe:",p)
+                logger.debug("Finish comm pipes")
                 for p in pool_pipes:
                     close_pipe(p)
+                    logger.debug("Finish pipe:", p)
+                logger.debug("Finish pool pipes")
 
             self._stop_funcs.append(stop_func)
 
@@ -1551,6 +1569,7 @@ cdef class ActorPool:
 
     cpdef stop(self):
         try:
+            logger.debug("ActorPool is stopped")
             for stop_func in self._stop_funcs:
                 stop_func()
         finally:
